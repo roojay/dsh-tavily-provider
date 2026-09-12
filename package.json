@@ -1,29 +1,25 @@
 {
-  "name": "dsh-tavily",
-  "version": "0.3.1",
+  "name": "dsh-tavily-provider",
+  "version": "0.4.0",
   "type": "module",
-  "description": "Tavily web search for DSH: settings toggle back to official DeepSeek, keyless by default",
+  "description": "Tavily web-search provider for DSH 0.1.5: credential-backed toggle, keyless fallback and authenticated connection probe.",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/SZMY-haruhi/dsh-tavily.git"
+    "url": "git+https://github.com/roojay/dsh-tavily-provider.git"
   },
   "bugs": {
-    "url": "https://github.com/SZMY-haruhi/dsh-tavily/issues"
+    "url": "https://github.com/roojay/dsh-tavily-provider/issues"
   },
-  "homepage": "https://github.com/SZMY-haruhi/dsh-tavily#readme",
-  "main": "lib/index.js",
+  "homepage": "https://github.com/roojay/dsh-tavily-provider#readme",
+  "main": "./src/index.js",
   "exports": {
-    ".": {
-      "default": "./lib/index.js"
-    },
-    "./client": {
-      "default": "./lib/client.js"
-    },
+    ".": "./src/index.js",
+    "./client": "./src/client.js",
     "./package.json": "./package.json"
   },
   "files": [
-    "lib/index.js",
-    "lib/client.js",
+    "src/index.js",
+    "src/client.js",
     "cordis.patch.yml"
   ],
   "license": "MIT",
@@ -41,22 +37,41 @@
       "inject": [
         "@deepseek-ai/dsh-client-connection",
         "@deepseek-ai/dsh-client-locale",
-        "@deepseek-ai/dsh-client-runtime",
         "@deepseek-ai/dsh-api-remotes",
         "@deepseek-ai/dsh-client-ui-settings",
-        "@deepseek-ai/dsh-client-ui-slots"
+        "@deepseek-ai/dsh-client-ui-settings-plugins"
       ],
       "platform": "web"
     }
   },
   "dependencies": {
-    "@deepseek-ai/schemastery": "^3.18.1"
+    "@deepseek-ai/schemastery": "^3.18.2"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-web": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-web-search-deepseek": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-credentials": "^0.1.0-rc.6",
-    "@deepseek-ai/dsh-launch-environment": "^0.1.0-rc.6"
+    "@deepseek-ai/cordis": "^4.0.2",
+    "@deepseek-ai/dsh-api-remotes": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-locale": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-ui-settings": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-ui-settings-plugins": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-client-connection": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-credentials": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-launch-environment": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-settings": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-web": "0.1.5-rc.2",
+    "@deepseek-ai/dsh-web-search-deepseek": "0.1.5-rc.2"
+  },
+  "scripts": {
+    "test": "node --test test/*.test.js",
+    "pack": "npm pack"
+  },
+  "publishConfig": {
+    "access": "public",
+    "registry": "https://registry.npmjs.org/"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "directories": {
+    "test": "test"
   }
 }

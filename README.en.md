@@ -1,36 +1,37 @@
-# dsh-tavily
+# dsh-tavily-provider
 
 [中文](README.md) | English
 
-[![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com) [![Recommend dshfind](https://img.shields.io/badge/Recommend-dshfind-ffd700?labelColor=555555)](https://dshfind.com/zh/plugins/SZMY-haruhi/dsh-tavily?ref=badge)
+[![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
 
-Tavily web search for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Adds Tavily Search API as a web search provider for DSH.
+Tavily web-search provider for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Version `0.4.x` targets DSH `0.1.5-rc.2` while preserving the original toggle, credential references, and DeepSeek fallback.
 
 ## Install
 
 npm (stable, official recommendation):
 
 ```sh
-dsh plugin --profile web add dsh-tavily
+dsh plugin --profile web add dsh-tavily-provider
 dsh web
 ```
 
 Or follow GitHub (latest commit on the repo):
 
 ```sh
-dsh plugin --profile web add github:SZMY-haruhi/dsh-tavily
+dsh plugin --profile web add github:roojay/dsh-tavily-provider
 dsh web
 ```
 
 Settings → Plugins → Plugin settings → **Tavily web search**: turn the toggle on. The key is optional; leave it blank for keyless. **Test connection** at the bottom-left checks that search works now (including keyless).
 
-**Please update to 0.3.1.** 0.3.0 can freeze the whole Web UI on “Failed to load plugins” when other client plugins are installed (the settings card registered as a list slot; current DSH requires a keyed `key`). This is fixed. npm:
+When migrating from the old npm package, remove it before installing the renamed package:
 
 ```sh
-dsh plugin --profile web update dsh-tavily
+dsh plugin --profile web remove dsh-tavily
+dsh plugin --profile web add dsh-tavily-provider
 ```
 
-GitHub installs: run `add github:SZMY-haruhi/dsh-tavily` again.
+The `TAVILY_API_KEY` and `TAVILY_SEARCH_ENABLED` references are unchanged, so existing credentials do not need to be entered again.
 
 <p align="center">
   <img src="docs/settings-en.png" alt="Tavily web search settings: keyless connection test passed" width="560" />
@@ -39,16 +40,16 @@ GitHub installs: run `add github:SZMY-haruhi/dsh-tavily` again.
 Pin a commit:
 
 ```sh
-dsh plugin --profile web add github:SZMY-haruhi/dsh-tavily#<commit>
+dsh plugin --profile web add github:roojay/dsh-tavily-provider#<commit>
 ```
 
 Remove:
 
 ```sh
-dsh plugin --profile web remove dsh-tavily
+dsh plugin --profile web remove dsh-tavily-provider
 ```
 
-> `dsh.bundle` · prebuilt `lib/` · git install does not need `allowBuilds`
+> `dsh.bundle` · prebuilt `src/` · git install does not need `allowBuilds`
 
 
 
@@ -87,6 +88,7 @@ You can also put these in `$DSH_HOME/.credentials.yaml`. Do not commit real keys
 
 ## Updates
 
+- **2026-09-12** **0.4.0:** Adapted settings sections, credential remotes, client slots, and Connection Fetch integration for DSH `0.1.5-rc.2`; renamed the npm package to `dsh-tavily-provider`. Existing credential references and the official DeepSeek fallback remain unchanged.
 - **2026-08-17** **0.3.1 (please update)** Fix: installing alongside other client plugins could freeze Web on “Failed to load plugins / dsh-tavily” (`settings.plugin.item` needs `key`, not `id`/`order`). Card namespace is `web-search-tavily`; the official Web Search card is not shadowed. Toggle and key still live on credentials.
 - **2026-08-17** Settings card: Test connection at the bottom-left. Works without a key (Tavily keyless). A saved key uses the account path and 1 credit. Does not change the toggle or Save.
 
