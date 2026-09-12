@@ -1,99 +1,77 @@
 # dsh-tavily-provider
 
-中文 | [English](README.en.md)
+English | [简体中文](README.zh.md)
 
-[DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Tavily 网页搜索 Provider。`0.4.x` 适配 DSH `0.1.5-rc.2`，保留原有开关、凭据引用和 DeepSeek 回落行为。
+Tavily web search for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Version 0.5.x targets DSH **0.1.5-rc.2**, on Node.js 22 or newer. This independent fork is not an official DeepSeek or Tavily project.
 
-## 项目来源与维护
-
-本项目是 [`SZMY-haruhi/dsh-tavily`](https://github.com/SZMY-haruhi/dsh-tavily) 的公开 fork，基于其 MIT 许可代码继续开发。自 `0.4.0` 起，本 fork 由 `roojay` 独立维护，并使用新的 npm 包名 `dsh-tavily-provider`；主要修改包括适配新版 DSH 接口、更新客户端设置集成，以及重建测试和自动发布流程。
-
-上游原作者保留原始代码的版权；本 fork 的后续修改由对应贡献者保留版权。完整条款及原作者版权声明见 [LICENSE](LICENSE)。本项目不是 DeepSeek 或 Tavily 的官方项目。
-
-## 安装
-
-npm（稳定版，官方推荐）：
+## Install
 
 ```sh
-dsh plugin --profile web add dsh-tavily-provider
+dsh plugin --profile web add dsh-tavily-provider@0.5.0
 ```
 
-也可以跟 GitHub（跟仓库最新提交）：
+Restart DSH, then open **Settings → Plugins → Plugin configuration → Tavily web search**. Enable Tavily and save. An API key is optional; without one the plugin uses Tavily's keyless access mode. Test connection performs a real basic search and costs one credit in account mode. A probe does not save a draft or change the switch.
+
+Development installs can use `dsh plugin --profile web add github:roojay/dsh-tavily-provider#<commit>`. The committed `src/` is directly runnable; installation needs no build hooks. If pnpm's minimum release age blocks a new version, wait or add only the exact trusted version to the profile's `minimumReleaseAgeExclude` list.
+
+## Behavior
+
+| Switch | Key | Search provider |
+| --- | --- | --- |
+| Off (default) | Any | Official DeepSeek search, with its current settings |
+| On | Absent | Tavily keyless |
+| On | Present | Tavily account |
+
+Credentials retain the `TAVILY_API_KEY` and `TAVILY_SEARCH_ENABLED` references. The presence of the latter enables Tavily, regardless of its string value. The card writes keys through DSH credentials and follows a custom `apiKeyEnv`; configuration literals remain read-only in the card. A failed save retains any unwritten key draft and reports that some changes may already have been applied. Discarding changes does not roll back completed remote writes.
+
+Disabling Tavily selects the official DeepSeek provider; Tavily failures do not silently switch to DeepSeek. Existing credentials survive upgrades from `dsh-tavily-provider@0.4.0`. When migrating from the original `dsh-tavily` package, remove that package before installing this fork to avoid two providers claiming the same id.
+
+## Configuration
+
+DSH settings namespace: `web-search-tavily`. Provider id: `tavily`. The card exposes the switch, key and search depth. Other options can be set through DSH settings.
+
+| Option | Default | Meaning |
+| --- | --- | --- |
+| `apiKeyEnv` | `TAVILY_API_KEY` | Credential reference |
+| `apiKey` | Unset | Optional secret configuration literal; overrides the reference |
+| `searchDepth` | `basic` | `basic`, `fast`, `ultra-fast`, or `advanced` |
+| `chunksPerSource` | `3` | 1–3 chunks for basic, fast and advanced |
+| `snippetChars` | `1600` | 500–10000 character cap; avoids cutting a later chunk when possible |
+| `maxResults` | `5` | Used when a provider request omits its result count; upstream count is capped at 20 |
+| `searchTimeoutMs` | `30000` | Total 1–300000 ms budget, including credentials, queue, retries and response body |
+| `maxRetries` | `1` | 0–2 retries for HTTP 429/502/503/504, with at most 2 seconds per retry delay |
+| `baseURL` | `https://api.tavily.com` | Official endpoint |
+| `allowCustomBaseURL` | `false` | Explicit opt-in for a trusted HTTPS gateway |
+
+Basic remains the balanced default. Fast favors latency; ultra-fast sacrifices relevance for speed. Advanced uses two search credits; the other depths use one. See [Tavily's guidance](https://docs.tavily.com/documentation/best-practices/best-practices-search) and [credits](https://docs.tavily.com/documentation/api-credits).
+
+## Reliability and security
+
+- At most four active Tavily requests and 32 queued requests per plugin instance, shared with probes. Canceled queue entries are removed.
+- Cancellation reaches fetch and body reading. Daily/monthly quota failures, invalid keys, and ambiguous network failures are not retried. Automatic retries can consume additional credits; set `maxRetries: 0` when that is undesirable.
+- Search responses are limited to 1 MiB. Results retain only supported fields, HTTP(S) URLs without embedded credentials, and unique source URLs. Deduplication ignores fragments and common tracking parameters while preserving functional parameters and HTTP/HTTPS distinctions.
+- Probes use DSH Connection's request checks, a streaming 4 KiB input limit and a five-second body deadline. Their security boundary follows the host's authentication and proxy configuration; this plugin does not install an authentication bypass.
+- Keys are validated before use in headers. Network failures omit raw causes; upstream error messages redact keys. Custom gateways receive the key and query, so only configure one you trust. Redirects are rejected.
+
+See [compatibility and transport limits](docs/COMPATIBILITY.md) and the [0.5.0 validation record](docs/REGRESSION.md).
+
+## Development and release
 
 ```sh
-dsh plugin --profile web add github:roojay/dsh-tavily-provider
+npm ci --ignore-scripts
+npm test
+npm run check:package
+npx playwright install chromium
+npm run test:browser
+npm run test:live
 ```
 
-设置 → 插件 → 插件配置 → **Tavily 网页搜索**：打开开关即可。Key 可选，不填走无 Key。左下「连通测试」可确认现在能不能搜（无 Key 也测得通）。
+`test:live` makes one real keyless search, plus one account search if `TAVILY_API_KEY` is present. Never commit or print real credentials. Browser tests use an isolated DSH home and synthetic credential fixtures; live search is opt-in and separate from deterministic CI.
 
-从旧 npm 包迁移时，先移除旧包，再安装新包：
+`src/` is the sole implementation. `test/` holds unit, browser and live checks; `scripts/` validates the published tarball; `docs/` records compatibility and validation. Legacy `lib/` files forward to `src/` for source checkouts and are not published.
 
-```sh
-dsh plugin --profile web remove dsh-tavily
-dsh plugin --profile web add dsh-tavily-provider
-```
+CI uses a committed npm lockfile, Node.js 22/24 checks, real DSH browser compatibility and tarball entry-point verification. Only after all checks pass does a matching `vX.Y.Z` tag publish the verified tarball to npm with OIDC/provenance and create a GitHub Release. Normal checks have read-only repository permissions.
 
-`TAVILY_API_KEY` 和 `TAVILY_SEARCH_ENABLED` 仍使用原引用，迁移不会要求重新录入已有凭据。
+## Origin and license
 
-<p align="center">
-  <img src="docs/settings-zh.png" alt="Tavily 网页搜索设置：无 Key 时连通测试通过" width="560" />
-</p>
-
-钉 commit：
-
-```sh
-dsh plugin --profile web add github:roojay/dsh-tavily-provider#<commit>
-```
-
-卸载：
-
-```sh
-dsh plugin --profile web remove dsh-tavily-provider
-```
-
-> `dsh.bundle` · 预构建 `src/` · git 安装无需 `allowBuilds`
-
-
-
-## 特点
-
-- 设置卡开关：关 = 官方 DeepSeek，开 = Tavily，不用卸包
-- 无 Key 走 Tavily keyless；有 Key 走 `Authorization: Bearer`
-- 左下连通测试：真打一次 Tavily（`max_results: 1`）；无 Key 走 keyless，有 Key 走账号档（消耗 1 积分）
-- 超时、中止、官方 Host 锁定、丢掉无 url 的结果
-- Key / 开关写在 credentials，不写设置文件
-
-
-
-## 行为
-
-
-| 开关    | Key | `web_search`   |
-| ----- | --- | -------------- |
-| 关（默认） | —   | 官方 DeepSeek    |
-| 开     | 未填  | Tavily keyless |
-| 开     | 已填  | Tavily 账号档     |
-
-
-Provider id：`tavily`。
-
-## 凭证
-
-
-| 引用                      | 含义                   |
-| ----------------------- | -------------------- |
-| `TAVILY_API_KEY`        | 可选。有则走账号档；无则 keyless |
-| `TAVILY_SEARCH_ENABLED` | 有此项则为开；删除即关          |
-
-
-可写在 `$DSH_HOME/.credentials.yaml`。不要把真实钥匙提交进仓库。
-
-## 更新
-
-- **2026-09-12** **0.4.0**：适配 DSH `0.1.5-rc.2` 的设置 Section、Credentials Remote、客户端 Slot 和 Connection Fetch 接口；npm 包改名为 `dsh-tavily-provider`。沿用原凭据引用，关闭 Tavily 时继续回落到官方 DeepSeek 搜索。
-- **2026-08-17** **0.3.1（请更新）** 修复：与其它客户端插件同时安装时，Web 可能卡在「Failed to load plugins / dsh-tavily」（`settings.plugin.item` 需 `key`，不能再用 `id`/`order`）。设置卡命名空间 `web-search-tavily`，不覆盖官方网页搜索卡。开关与 Key 仍走 credentials。
-- **2026-08-17** 设置卡左下增加连通测试。无 Key 也可测（走 Tavily keyless）；有已存 Key 则走账号档，消耗 1 积分。不改开关、不占用保存。
-
-## 许可
-
-本项目遵循 [MIT License](LICENSE)。`LICENSE` 中保留了上游原作者 `SZMY-haruhi` 的版权声明。
+Forked from [`SZMY-haruhi/dsh-tavily`](https://github.com/SZMY-haruhi/dsh-tavily), under the [MIT license](LICENSE). The original author's copyright is retained. Since 0.4.0, `roojay` maintains this fork independently under the npm name `dsh-tavily-provider`.

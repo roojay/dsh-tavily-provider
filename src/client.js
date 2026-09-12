@@ -27,6 +27,7 @@ window.__ModuleLoader__.load({
         keyPlaceholderEmpty: '可选；留空使用 Tavily keyless',
         keyPlaceholderClear: '输入新密钥可取消清除',
         keyHint: '密钥只写入 DSH 凭据中心，不进入设置文件。',
+        keyReadOnly: '当前密钥由只读来源提供，请在该来源修改。',
         test: '连通测试',
         testing: '测试中…',
         testOk: '连通正常',
@@ -39,7 +40,18 @@ window.__ModuleLoader__.load({
         discard: '放弃修改',
         save: '保存',
         saving: '保存中…',
-        saveFailed: '保存失败'
+        saveFailed: '未能完成保存；部分更改可能已生效，请检查当前状态。',
+        depth: '搜索档位',
+        basic: '均衡（默认）',
+        fast: '快速',
+        'ultra-fast': '极速（相关性较低）',
+        advanced: '深入（2 积分）',
+        rate_limited: '请求受限，请稍后重试',
+        quota: '额度已用尽，请检查 Tavily 账户',
+        busy: '搜索繁忙，请稍后重试',
+        aborted: '已取消',
+        conflicted: '密钥引用已改变，请放弃草稿后重新填写。',
+        testHint: '测试使用均衡档位；账号模式每次消耗 1 积分。'
       },
       en: {
         title: 'Tavily web search',
@@ -57,6 +69,7 @@ window.__ModuleLoader__.load({
         keyPlaceholderEmpty: 'Optional; leave blank for Tavily keyless',
         keyPlaceholderClear: 'Enter a new key to cancel clearing',
         keyHint: 'The key is stored only in DSH credentials, never in the settings document.',
+        keyReadOnly: 'The key comes from a read-only source. Update it at that source.',
         test: 'Test connection',
         testing: 'Testing…',
         testOk: 'Connected',
@@ -69,7 +82,13 @@ window.__ModuleLoader__.load({
         discard: 'Discard',
         save: 'Save',
         saving: 'Saving…',
-        saveFailed: 'Save failed'
+        saveFailed: 'Save incomplete; some changes may already be applied. Check the current state.',
+        depth: 'Search depth', basic: 'Balanced (default)', fast: 'Fast',
+        'ultra-fast': 'Ultra-fast (lower relevance)', advanced: 'Advanced (2 credits)',
+        rate_limited: 'Rate limited; try again later', quota: 'Quota exhausted; check your Tavily account',
+        busy: 'Search is busy; try again later', aborted: 'Canceled',
+        conflicted: 'The key reference changed. Discard the draft and enter it again.',
+        testHint: 'The test uses basic search and costs 1 credit in account mode.'
       }
     }
 
@@ -117,7 +136,8 @@ window.__ModuleLoader__.load({
         '.dshTavilyLabel{flex:1;min-width:0;font-size:13px;font-weight:500}',
         '.dshTavilySwitch{position:relative;width:38px;height:22px;flex:none}',
         '.dshTavilySwitch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}',
-        '.dshTavilyTrack{display:block;width:38px;height:22px;border-radius:999px;background:var(--dsw-alias-interactive-bg-hover-solid)}',
+        '.dshTavilyTrack{display:block;width:38px;height:22px;border-radius:999px;background:var(--dsw-alias-interactive-bg-hover-solid);pointer-events:none}',
+        '.dshTavilySwitch input:focus-visible+.dshTavilyTrack{outline:2px solid var(--dsw-alias-state-business-primary);outline-offset:2px}',
         '.dshTavilyTrack:after{content:"";position:absolute;left:3px;top:3px;width:16px;height:16px;border-radius:50%;background:var(--dsw-alias-label-primary);transition:transform .15s}',
         '.dshTavilySwitch input:checked+.dshTavilyTrack{background:var(--dsw-alias-state-business-primary)}',
         '.dshTavilySwitch input:checked+.dshTavilyTrack:after{transform:translateX(16px);background:#fff}',
@@ -137,168 +157,191 @@ window.__ModuleLoader__.load({
     function TavilyCardController(remote) {
       this.remote = remote
       this.enabled = false
+      this.keyRef = KEY_REF
       this.keyConfigured = false
-      this.keyWritable = true
-      this.enabledWritable = true
+      this.keyWritable = false
+      this.enabledWritable = false
+      this.settingsWritable = false
       this.draftEnabled = false
       this.draftKey = ''
       this.clearKey = false
+      this.searchDepth = 'basic'
+      this.draftDepth = 'basic'
+      this.timeoutMs = 30000
+      this.revision = undefined
       this.saving = false
       this.failed = false
+      this.loading = true
+      this.conflicted = false
       this.probing = false
       this.probe = null
       this.refreshGeneration = 0
+      this.probeGeneration = 0
+      this.disposed = false
       this.store = createSnapshotStore(this.projection())
       this.refresh()
     }
 
     TavilyCardController.prototype.projection = function () {
       return {
-        enabled: this.draftEnabled,
-        keyConfigured: this.keyConfigured,
-        keyWritable: this.keyWritable,
-        enabledWritable: this.enabledWritable,
-        draftKey: this.draftKey,
-        clearKey: this.clearKey,
-        dirty: this.draftEnabled !== this.enabled || this.draftKey.trim() !== '' || this.clearKey,
-        saving: this.saving,
-        failed: this.failed,
-        probing: this.probing,
-        probe: this.probe
+        enabled: this.draftEnabled, keyConfigured: this.keyConfigured,
+        keyWritable: this.keyWritable, enabledWritable: this.enabledWritable,
+        settingsWritable: this.settingsWritable,
+        draftKey: this.draftKey, clearKey: this.clearKey, searchDepth: this.draftDepth,
+        dirty: this.draftEnabled !== this.enabled || this.draftKey.trim() !== '' || this.clearKey || this.draftDepth !== this.searchDepth,
+        saving: this.saving, failed: this.failed, loading: this.loading, conflicted: this.conflicted,
+        probing: this.probing, probe: this.probe
       }
     }
 
     TavilyCardController.prototype.publish = function () {
-      this.store.set(this.projection())
-    }
-
-    TavilyCardController.prototype.describe = async function (ref) {
-      var result = await this.remote.credentials.describe([ref])
-      if (!result.ok) throw new Error(messageOf(result))
-      return result.value[ref] || { configured: false, writable: true }
+      if (!this.disposed) this.store.set(this.projection())
     }
 
     TavilyCardController.prototype.refresh = async function () {
+      if (this.saving || this.disposed) return
       var generation = ++this.refreshGeneration
       try {
-        var results = await Promise.all([this.describe(ENABLED_REF), this.describe(KEY_REF)])
-        if (generation !== this.refreshGeneration) return
-        this.enabled = results[0].configured === true
-        this.enabledWritable = results[0].writable !== false
-        this.keyConfigured = results[1].configured === true
-        this.keyWritable = results[1].writable !== false
-        this.draftEnabled = this.enabled
-        this.draftKey = ''
-        this.clearKey = false
-        this.failed = false
+        var description = await this.remote.settings.describe()
+        this.assertRemote(description)
+        var section = description.value.namespaces.find(function (value) { return value.ns === NAMESPACE })
+        if (!section) throw new Error('settings unavailable')
+        var value = section.value || {}
+        var ref = value.apiKeyEnv || KEY_REF
+        var literal = (section.secrets || []).some(function (secret) {
+          return secret.set && secret.path.length === 1 && secret.path[0] === 'apiKey'
+        })
+        var result = await this.remote.credentials.describe([ENABLED_REF, ref])
+        this.assertRemote(result)
+        if (generation !== this.refreshGeneration || this.disposed) return
+        var dirty = this.projection().dirty
+        if (ref !== this.keyRef && dirty) this.conflicted = true
+        this.keyRef = ref
+        this.literalKeyConfigured = literal
+        var enabled = result.value[ENABLED_REF] || {}
+        var key = result.value[ref] || {}
+        this.enabled = enabled.configured === true
+        this.enabledWritable = enabled.writable !== false
+        this.keyConfigured = literal || key.configured === true
+        this.keyWritable = !literal && key.writable !== false
+        this.settingsWritable = description.value.writable !== false
+        this.searchDepth = value.searchDepth || 'basic'
+        this.timeoutMs = value.searchTimeoutMs || 30000
+        this.revision = section.revision
+        if (!dirty) {
+          this.draftEnabled = this.enabled
+          this.draftDepth = this.searchDepth
+        }
+        this.loading = false
       } catch {
-        if (generation !== this.refreshGeneration) return
+        if (generation !== this.refreshGeneration || this.disposed) return
         this.failed = true
       }
       this.publish()
+    }
+
+    TavilyCardController.prototype.cancelProbe = function () {
+      this.probeGeneration++
+      if (this.probeAbort) this.probeAbort.abort()
+      this.probeAbort = null
+      this.probing = false
+      this.probe = null
     }
 
     TavilyCardController.prototype.setEnabled = function (value) {
-      this.draftEnabled = value
-      this.failed = false
-      this.probe = null
-      this.publish()
+      this.cancelProbe(); this.draftEnabled = value; this.failed = false; this.publish()
     }
-
+    TavilyCardController.prototype.setDepth = function (value) {
+      this.cancelProbe(); this.draftDepth = value; this.failed = false; this.publish()
+    }
     TavilyCardController.prototype.setKey = function (value) {
-      this.draftKey = value
-      this.clearKey = false
-      this.failed = false
-      this.probe = null
-      this.publish()
+      this.cancelProbe(); this.draftKey = value; this.clearKey = false; this.failed = false; this.publish()
     }
-
     TavilyCardController.prototype.stageClearKey = function () {
-      this.draftKey = ''
-      this.clearKey = true
-      this.failed = false
-      this.probe = null
-      this.publish()
+      this.cancelProbe(); this.draftKey = ''; this.clearKey = true; this.failed = false; this.publish()
     }
-
     TavilyCardController.prototype.discard = function () {
-      this.draftEnabled = this.enabled
-      this.draftKey = ''
-      this.clearKey = false
-      this.failed = false
-      this.probe = null
-      this.publish()
+      this.cancelProbe(); this.draftEnabled = this.enabled; this.draftDepth = this.searchDepth
+      this.draftKey = ''; this.clearKey = false; this.failed = false; this.conflicted = false; this.publish()
     }
-
     TavilyCardController.prototype.assertRemote = function (result) {
       if (!result.ok) throw new Error(messageOf(result))
     }
-
     TavilyCardController.prototype.save = async function () {
-      if (this.saving) return
-      this.saving = true
-      this.failed = false
-      this.publish()
-      try {
-        if (this.enabledWritable) {
-          this.assertRemote(this.draftEnabled
-            ? await this.remote.credentials.set(ENABLED_REF, 'true')
-            : await this.remote.credentials.unset(ENABLED_REF))
-        }
-        var key = this.draftKey.trim()
-        if (this.keyWritable && key !== '') {
-          this.assertRemote(await this.remote.credentials.set(KEY_REF, key))
-        } else if (this.keyWritable && this.clearKey) {
-          this.assertRemote(await this.remote.credentials.unset(KEY_REF))
-        }
-        this.saving = false
-        await this.refresh()
-      } catch {
-        this.saving = false
-        this.failed = true
-        this.publish()
+      if (this.saving || this.loading || this.conflicted || this.disposed) return
+      var snapshot = { enabled: this.draftEnabled, previous: this.enabled, key: this.draftKey.trim(),
+        clear: this.clearKey, ref: this.keyRef, keyWritable: this.keyWritable,
+        enabledWritable: this.enabledWritable, depth: this.draftDepth, previousDepth: this.searchDepth, revision: this.revision }
+      if (snapshot.key && (/[^\x20-\x7e]/.test(this.draftKey) || this.draftKey.length > 512)) {
+        this.failed = true; this.publish(); return
       }
+      this.cancelProbe()
+      this.refreshGeneration++
+      this.saving = true; this.failed = false; this.publish()
+      var failed = false
+      try {
+        if (snapshot.enabledWritable && !snapshot.enabled && snapshot.previous) {
+          this.assertRemote(await this.remote.credentials.unset(ENABLED_REF))
+        }
+        if (snapshot.keyWritable && snapshot.key) {
+          this.assertRemote(await this.remote.credentials.set(snapshot.ref, snapshot.key))
+          this.draftKey = ''
+        } else if (snapshot.keyWritable && snapshot.clear) {
+          this.assertRemote(await this.remote.credentials.unset(snapshot.ref))
+          this.clearKey = false
+        }
+        if (snapshot.depth !== snapshot.previousDepth) {
+          this.assertRemote(await this.remote.settings.update(NAMESPACE, { searchDepth: snapshot.depth }, snapshot.revision))
+        }
+        if (snapshot.enabledWritable && snapshot.enabled && !snapshot.previous) {
+          this.assertRemote(await this.remote.credentials.set(ENABLED_REF, 'true'))
+        }
+      } catch { failed = true }
+      this.saving = false
+      await this.refresh()
+      this.failed = this.failed || failed
+      this.publish()
     }
 
     TavilyCardController.prototype.testConnection = async function () {
-      if (this.probing || this.saving) return
-      this.probing = true
-      this.probe = null
-      this.publish()
+      if (this.probing || this.saving || this.loading || this.conflicted || this.disposed) return
+      this.cancelProbe()
+      var generation = this.probeGeneration
+      var controller = new AbortController()
+      this.probeAbort = controller
+      var timedOut = false
+      var timer = setTimeout(function () { timedOut = true; controller.abort() }, this.timeoutMs + 5000)
+      this.probing = true; this.publish()
       try {
         var body = {}
-        var key = this.draftKey.trim()
-        if (key !== '') body.apiKey = key
-        else if (this.clearKey) body.clearKey = true
-        var response = await fetch('/api/tavily-probe', {
-          method: 'POST',
-          headers: { 'content-type': 'application/json' },
-          cache: 'no-store',
-          body: JSON.stringify(body)
-        })
+        if (this.keyWritable && this.draftKey.trim()) body.apiKey = this.draftKey.trim()
+        else if (this.keyWritable && this.clearKey) body.clearKey = true
+        var response = await fetch('/api/tavily-probe', { method: 'POST',
+          headers: { 'content-type': 'application/json' }, cache: 'no-store',
+          body: JSON.stringify(body), signal: controller.signal })
         var value = await response.json().catch(function () { return {} })
-        this.probe = response.status === 404
-          ? { ok: false, code: 'unavailable' }
-          : value.ok === true
-            ? { ok: true }
-            : {
-                ok: false,
-                code: typeof value.code === 'string' ? value.code : 'unknown',
-                status: value.status,
-                error: value.error
-              }
+        if (generation !== this.probeGeneration || this.disposed) return
+        this.probe = response.ok && value.ok === true ? { ok: true, mode: value.mode }
+          : { ok: false, code: response.status === 404 ? 'unavailable' : value.code || 'unknown',
+              status: value.status, retryAfterSeconds: value.retryAfterSeconds }
       } catch {
-        this.probe = { ok: false, code: 'network' }
+        if (generation !== this.probeGeneration || this.disposed) return
+        this.probe = { ok: false, code: timedOut ? 'timeout' : 'network' }
+      } finally {
+        clearTimeout(timer)
+        if (generation === this.probeGeneration && !this.disposed) { this.probing = false; this.probeAbort = null; this.publish() }
       }
-      this.probing = false
-      this.publish()
+    }
+
+    TavilyCardController.prototype.dispose = function () {
+      this.cancelProbe(); this.refreshGeneration++; this.disposed = true; this.draftKey = ''
     }
 
     TavilyCardController.prototype.inject = function () {
       var self = this
-      return {
-        hooks: { tavilyCard: this.store },
+      return { hooks: { tavilyCard: this.store },
         setEnabled: function (value) { self.setEnabled(value) },
+        setDepth: function (value) { self.setDepth(value) },
         setKey: function (value) { self.setKey(value) },
         stageClearKey: function () { self.stageClearKey() },
         discard: function () { self.discard() },
@@ -314,6 +357,7 @@ window.__ModuleLoader__.load({
       if (probe.code === 'invalid_key') return t('testFailed') + t('invalidKey')
       if (probe.code === 'network') return t('testFailed') + t('network')
       if (probe.code === 'unavailable') return t('testFailed') + t('unavailable')
+      if (['rate_limited', 'quota', 'busy', 'aborted'].includes(probe.code)) return t('testFailed') + t(probe.code)
       if (probe.code === 'http') return t('testFailed') + 'HTTP ' + String(probe.status || '')
       return t('testFailed') + (probe.error || t('unknown'))
     }
@@ -334,7 +378,7 @@ window.__ModuleLoader__.load({
         : state.keyConfigured
           ? t('keyPlaceholderKeep')
           : t('keyPlaceholderEmpty')
-      var blocked = !state.dirty || state.saving
+      var blocked = !state.dirty || state.saving || state.loading || state.conflicted
 
       return React.createElement('div', {
         className: 'dshTavilyCard',
@@ -362,15 +406,25 @@ window.__ModuleLoader__.load({
               React.createElement('label', { className: 'dshTavilySwitch' },
                 React.createElement('input', {
                   type: 'checkbox',
-                  role: 'switch',
+                   role: 'switch',
+                   'aria-label': t('enable'),
                   checked: state.enabled,
                   disabled: !state.enabledWritable || state.saving,
                   onChange: function (event) { props.setEnabled(event.target.checked) }
                 }),
                 React.createElement('span', { className: 'dshTavilyTrack', 'aria-hidden': 'true' })
               )
-            ),
-            React.createElement('div', null,
+             ),
+             React.createElement('label', { className: 'dshTavilyRow' },
+               React.createElement('span', { className: 'dshTavilyLabel' }, t('depth')),
+               React.createElement('select', { className: 'dshTavilyInput', value: state.searchDepth,
+                 disabled: !state.settingsWritable || state.loading || state.saving,
+                 onChange: function (event) { props.setDepth(event.target.value) }
+               }, ['basic', 'fast', 'ultra-fast', 'advanced'].map(function (depth) {
+                 return React.createElement('option', { key: depth, value: depth }, t(depth))
+               }))
+             ),
+             React.createElement('div', null,
               React.createElement('div', { className: 'dshTavilyMeta' },
                 React.createElement('span', { className: 'dshTavilyLabel' }, t('apiKey')),
                 React.createElement('span', { className: 'dshTavilyStatus' }, keyBadge),
@@ -385,7 +439,9 @@ window.__ModuleLoader__.load({
               ),
               React.createElement('input', {
                 className: 'dshTavilyInput',
-                type: 'password',
+                 type: 'password',
+                 'aria-label': t('apiKey'),
+                 maxLength: 512,
                 autoComplete: 'off',
                 spellCheck: false,
                 placeholder: keyPlaceholder,
@@ -393,8 +449,9 @@ window.__ModuleLoader__.load({
                 disabled: !state.keyWritable || state.saving,
                 onChange: function (event) { props.setKey(event.target.value) }
               }),
-              React.createElement('p', { className: 'dshTavilyHint' }, t('keyHint'))
-            ),
+               React.createElement('p', { className: 'dshTavilyHint' }, t(state.keyWritable ? 'keyHint' : 'keyReadOnly'))
+             ),
+             React.createElement('p', { className: 'dshTavilyHint' }, t('testHint')),
             React.createElement('div', { className: 'dshTavilyMeta' },
               React.createElement('span', {
                 className: state.probe && !state.probe.ok
@@ -407,13 +464,13 @@ window.__ModuleLoader__.load({
                 React.createElement('button', {
                   type: 'button',
                   className: 'dshTavilyButton',
-                  disabled: state.probing || state.saving,
+                   disabled: state.probing || state.saving || state.loading || state.conflicted,
                   onClick: props.testConnection
                 }, state.probing ? t('testing') : t('test')),
                 React.createElement('button', {
                   type: 'button',
                   className: 'dshTavilyButton',
-                  disabled: blocked,
+                   disabled: (!state.dirty && !state.conflicted) || state.saving,
                   onClick: props.discard
                 }, t('discard')),
                 React.createElement('button', {
@@ -425,11 +482,11 @@ window.__ModuleLoader__.load({
                 }, state.saving ? t('saving') : t('save'))
               )
             ),
-            state.failed
+             state.failed || state.conflicted
               ? React.createElement('div', {
                   className: 'dshTavilyStatus dshTavilyError',
                   role: 'alert'
-                }, t('saveFailed'))
+                }, t(state.conflicted ? 'conflicted' : 'saveFailed'))
               : null
           )
         : null)
@@ -439,7 +496,7 @@ window.__ModuleLoader__.load({
       var slots = ctx.get('slots')
       var locale = ctx.get('locale')
       var remote = ctx.get('remote')
-      if (!slots || !locale || !remote || !remote.credentials) return
+      if (!slots || !locale || !remote || !remote.credentials || !remote.settings) return
 
       ctx.effect(function () { return addStyles() }, 'tavily-provider: styles')
       ctx.effect(function () {
@@ -447,11 +504,17 @@ window.__ModuleLoader__.load({
       }, 'tavily-provider: dictionaries')
 
       var controller = new TavilyCardController(remote)
+      ctx.effect(function () { return function () { controller.dispose() } }, 'tavily-provider: controller')
       ctx.effect(function () {
         return remote.$on('credentials/reference-updated', function (ref) {
-          if (ref === KEY_REF || ref === ENABLED_REF) controller.refresh()
+          if (ref === controller.keyRef || ref === ENABLED_REF) controller.refresh()
         })
       }, 'tavily-provider: credential refresh')
+      ctx.effect(function () {
+        return remote.$on('settings/document-updated', function (ns) {
+          if (ns === NAMESPACE) { controller.cancelProbe(); controller.refresh() }
+        })
+      }, 'tavily-provider: settings refresh')
 
       slots.inject('settings.plugin.item', function () {
         return slots.register({
@@ -464,7 +527,7 @@ window.__ModuleLoader__.load({
     }
 
     exports.apply = apply
-    exports.inject = ['slots', 'locale', 'remote', 'remote.credentials']
+    exports.inject = ['slots', 'locale', 'remote', 'remote.credentials', 'remote.settings']
     exports.__test = {
       createSnapshotStore: createSnapshotStore,
       TavilyCardController: TavilyCardController

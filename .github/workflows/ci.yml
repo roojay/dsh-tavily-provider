@@ -2,82 +2,108 @@ name: CI
 
 on:
   push:
-    branches:
-      - master
-      - main
-    tags:
-      - 'v*'
+    branches: [main, master]
+    tags: ['v*']
   pull_request:
+  workflow_dispatch:
 
 permissions:
-  contents: write
-  id-token: write
+  contents: read
 
 jobs:
-  ci:
-    name: Test and pack
-    runs-on: ubuntu-latest
-    timeout-minutes: 10
-
+  test:
+    name: Test and pack (Node ${{ matrix.node }})
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        node: [22, 24]
     steps:
-      - name: Check out repository
-        uses: actions/checkout@v7.0.1
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: ${{ matrix.node }}
+          cache: npm
+      - name: Verify release tag
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: test "$GITHUB_REF_NAME" = "v$(node -p 'require("./package.json").version')"
+      - run: npm ci --ignore-scripts
+      - run: npm test
+      - run: npm run check:package
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7.0.1
+        if: matrix.node == 24
+        with:
+          name: npm-package
+          path: artifacts/**/*.tgz
+          if-no-files-found: error
+          retention-days: 14
 
-      - name: Set up Node.js
-        uses: actions/setup-node@v7.0.0
+  compatibility:
+    name: DSH 0.1.5-rc.2 browser compatibility
+    needs: test
+    runs-on: ubuntu-24.04
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
         with:
           node-version: 24
-
-      - name: Check tag matches package version
-        if: startsWith(github.ref, 'refs/tags/v')
+          cache: npm
+      - run: npm ci --ignore-scripts
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-package
+          path: artifacts
+      - run: npx --no-install playwright install --with-deps chromium
+      - name: Test the packed plugin in real DSH
         run: |
-          tag="${GITHUB_REF_NAME#v}"
-          pkg="$(node -p "require('./package.json').version")"
-          test "$tag" = "$pkg"
+          tarball="$(find "$PWD/artifacts" -type f -name '*.tgz')"
+          test -f "$tarball"
+          PLUGIN_TARBALL="$tarball" npm run test:browser
 
-      - name: Install dependencies
-        run: npm install --ignore-scripts --no-package-lock
-
-      - name: Run tests
-        run: npm test
-
-      - name: Verify package entry points
+  publish:
+    name: Publish npm and GitHub Release
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: [test, compatibility]
+    runs-on: ubuntu-24.04
+    timeout-minutes: 10
+    concurrency:
+      group: release-${{ github.ref }}
+      cancel-in-progress: false
+    permissions:
+      contents: write
+      id-token: write
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7.0.1
+      - uses: actions/setup-node@820762786026740c76f36085b0efc47a31fe5020 # v7.0.0
+        with:
+          node-version: 24
+      - uses: actions/download-artifact@3e5f45b2cfb9172054b4087a40e8e0b5a5461e7c # v8.0.1
+        with:
+          name: npm-package
+          path: artifacts
+      - name: Publish verified bytes with trusted publishing
         run: |
-          node --input-type=module --eval "await import('./src/index.js')"
-          node --input-type=module --eval '
-            globalThis.window = { __ModuleLoader__: { load() {} } }
-            await import("./src/client.js")
-          '
-
-      - name: Pack tarball
-        run: npm pack
-
-      - name: Verify tarball contents
-        run: |
-          tarball="$(ls ./*.tgz)"
-          tar -tzf "$tarball" | grep -E '/src/index\.js$'
-          tar -tzf "$tarball" | grep -E '/src/client\.js$'
-          tar -tzf "$tarball" | grep -E '/package\.json$'
-
-      - name: Publish to npm
-        if: startsWith(github.ref, 'refs/tags/v')
-        run: |
-          npm install -g npm@latest
-          tarball="$(ls ./*.tgz)"
-          name="$(node -p "require('./package.json').name")"
-          version="$(node -p "require('./package.json').version")"
-          if npm view "${name}@${version}" version >/dev/null 2>&1; then
-            echo "${name}@${version} already on npm, skip publish"
+          npm install --global npm@12.0.2 --ignore-scripts
+          tarball="$(find "$PWD/artifacts" -type f -name '*.tgz')"
+          test -f "$tarball"
+          name="$(node -p 'require("./package.json").name')"
+          version="$(node -p 'require("./package.json").version')"
+          test "$GITHUB_REF_NAME" = "v$version"
+          existing="$(npm view "$name@$version" dist.integrity 2>/dev/null || true)"
+          if [ -n "$existing" ]; then
+            actual="$(node --input-type=module -e 'import{createHash}from"node:crypto";import{readFileSync}from"node:fs";console.log("sha512-"+createHash("sha512").update(readFileSync(process.argv[1])).digest("base64"))' "$tarball")"
+            test "$existing" = "$actual"
+            echo 'The identical package is already published.'
           else
             npm publish "$tarball" --access public --provenance
           fi
-
-      - name: Publish GitHub Release
-        if: startsWith(github.ref, 'refs/tags/v')
+      - name: Create GitHub Release
         env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          GH_TOKEN: ${{ github.token }}
         run: |
-          gh release create "$GITHUB_REF_NAME" \
-            ./*.tgz \
-            --title "$GITHUB_REF_NAME" \
-            --generate-notes
+          tarball="$(find "$PWD/artifacts" -type f -name '*.tgz')"
+          if ! gh release view "$GITHUB_REF_NAME" >/dev/null 2>&1; then
+            gh release create "$GITHUB_REF_NAME" "$tarball" --verify-tag --title "$GITHUB_REF_NAME" --notes-file "docs/RELEASE-${GITHUB_REF_NAME#v}.md"
+          fi

@@ -8,11 +8,13 @@ test('package metadata targets DSH 0.1.5 and the new npm name', async () => {
   const pkg = JSON.parse(await readFile(new URL('package.json', root), 'utf8'))
 
   assert.equal(pkg.name, 'dsh-tavily-provider')
-  assert.equal(pkg.version, '0.4.0')
+  assert.match(pkg.version, /^\d+\.\d+\.\d+$/u)
   assert.equal(pkg.main, './src/index.js')
   assert.equal(pkg.exports['.'], './src/index.js')
   assert.equal(pkg.exports['./client'], './src/client.js')
-  assert.deepEqual(pkg.files, ['src/index.js', 'src/client.js', 'cordis.patch.yml'])
+  assert(pkg.files.includes('src'))
+  assert(!pkg.files.includes('lib'))
+  assert(pkg.files.includes('README.zh.md'))
 
   const clientInject = pkg.dsh.client.inject
   assert(clientInject.includes('@deepseek-ai/dsh-client-connection'))

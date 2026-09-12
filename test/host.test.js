@@ -35,10 +35,10 @@ test('Tavily results keep only safe provider fields and cap snippets', () => {
 
   assert.deepEqual(result, {
     sources: [{
-      url: 'https://example.com',
+      url: 'https://example.com/',
       title: 'Example',
-      snippet: 'a'.repeat(800),
-      publishedAt: '2026-09-12'
+      snippet: 'a'.repeat(900),
+      publishedAt: '2026-09-12T00:00:00.000Z'
     }],
     truncated: false
   })
@@ -56,7 +56,7 @@ test('probe body accepts an empty object and rejects malformed or oversized inpu
   await assert.rejects(__test.readProbeBody(new Request('https://dsh.test', {
     method: 'POST',
     body: JSON.stringify({ value: 'x'.repeat(4096) })
-  })), /body too large/u)
+  })), /body is too large/u)
 })
 
 test('provider falls back when disabled and calls Tavily when enabled', async (t) => {
@@ -105,7 +105,7 @@ test('provider falls back when disabled and calls Tavily when enabled', async (t
   }
 
   const enabled = await provider.search({ query: 'enabled', maxResults: 3 })
-  assert.equal(enabled.sources[0].url, 'https://result.test')
+  assert.equal(enabled.sources[0].url, 'https://result.test/')
   assert.equal(request.url, 'https://api.tavily.com/search')
   assert.equal(request.init.headers.authorization, 'Bearer secret-value')
   assert.deepEqual(JSON.parse(request.init.body), {
@@ -125,6 +125,7 @@ test('apply registers the current settings section, provider and authenticated p
   let route
   const ctx = {
     inject(names, callback) {
+      if (names[0] === 'connection') return callback(ctx)
       assert.deepEqual(names, ['settings'])
       callback({
         settings: {
@@ -159,5 +160,5 @@ test('apply registers the current settings section, provider and authenticated p
   assert.equal(provider.id, 'tavily')
   assert.equal(route.path, '/api/tavily-probe')
   assert.deepEqual(route.methods, ['POST'])
-  assert.equal(route.requestBody, 'buffered')
+  assert.equal(route.requestBody, 'streaming')
 })

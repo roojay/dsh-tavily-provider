@@ -21,11 +21,14 @@ test('client bundle uses current credential remotes and a keyed settings slot', 
     assert.equal(name, 'react')
     return React
   })
-  assert.deepEqual(exports.inject, ['slots', 'locale', 'remote', 'remote.credentials'])
+  assert.deepEqual(exports.inject, ['slots', 'locale', 'remote', 'remote.credentials', 'remote.settings'])
 
   const configured = new Set(['TAVILY_SEARCH_ENABLED'])
   const calls = []
   const remote = {
+    settings: {
+      async describe() { return { ok: true, value: { namespaces: [{ ns: 'web-search-tavily', value: {}, revision: 0 }] } } }
+    },
     credentials: {
       async describe(refs) {
         return {

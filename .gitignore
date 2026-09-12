@@ -1,6 +1,5 @@
 # Local install (do not publish)
 node_modules/
-package-lock.json
 pnpm-lock.yaml
 yarn.lock
 *.tgz
@@ -24,6 +23,7 @@ Thumbs.db
 
 # Local DSH / tooling
 .dsh/
+artifacts/
 
 # Local session handoff (do not publish)
 MEMORY.md
