@@ -1,4 +1,10 @@
-# 0.5.0 validation record
+# Validation record
+
+## 0.5.1 layout follow-up
+
+The search-depth row now reserves the label's intrinsic width and lets the select fill a shrinkable remainder, without a fixed control width. The rendered Chinese and English card contents were checked at 320, 390, 768 and 1280 px viewport widths in Chromium: labels stayed on one line, controls remained inside the row, and their widths changed with the container. These checks isolate the plugin card from the host's sidebar sizing. No search or credential behavior changed in this patch.
+
+## 0.5.0 baseline
 
 Date: 2026-09-12. Baseline: fork commit `d4abd92`, version 0.4.0. Measurements are small smoke-test samples, not an SLA or a controlled before/after benchmark.
 

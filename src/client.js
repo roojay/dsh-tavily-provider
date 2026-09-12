@@ -133,6 +133,8 @@ window.__ModuleLoader__.load({
         '.dshTavilyMode{flex:none;border-radius:999px;padding:2px 8px;background:var(--dsw-alias-interactive-bg-hover);font-size:11px;white-space:nowrap}',
         '.dshTavilyBody{display:flex;flex-direction:column;gap:14px;border-top:.5px solid var(--dsw-alias-border-l2);padding:14px 16px 16px}',
         '.dshTavilyRow{display:flex;align-items:center;gap:10px}',
+        '.dshTavilyDepthRow{display:grid;grid-template-columns:max-content minmax(0,1fr)}',
+        '.dshTavilyDepthRow>.dshTavilyInput{min-width:0}',
         '.dshTavilyLabel{flex:1;min-width:0;font-size:13px;font-weight:500}',
         '.dshTavilySwitch{position:relative;width:38px;height:22px;flex:none}',
         '.dshTavilySwitch input{position:absolute;inset:0;opacity:0;margin:0;cursor:pointer}',
@@ -415,7 +417,7 @@ window.__ModuleLoader__.load({
                 React.createElement('span', { className: 'dshTavilyTrack', 'aria-hidden': 'true' })
               )
              ),
-             React.createElement('label', { className: 'dshTavilyRow' },
+             React.createElement('label', { className: 'dshTavilyRow dshTavilyDepthRow' },
                React.createElement('span', { className: 'dshTavilyLabel' }, t('depth')),
                React.createElement('select', { className: 'dshTavilyInput', value: state.searchDepth,
                  disabled: !state.settingsWritable || state.loading || state.saving,

@@ -1,6 +1,6 @@
 {
   "name": "dsh-tavily-provider",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "type": "module",
   "description": "Tavily web search for DSH: selectable search depth, bounded requests, credential-backed settings and DeepSeek fallback.",
   "repository": {

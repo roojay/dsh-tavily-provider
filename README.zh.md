@@ -7,7 +7,7 @@
 ## 安装
 
 ```sh
-dsh plugin --profile web add dsh-tavily-provider@0.5.0
+dsh plugin --profile web add dsh-tavily-provider@0.5.1
 ```
 
 重启 DSH，进入 **设置 → 插件 → 插件配置 → Tavily 网页搜索**，打开开关并保存。密钥可选，不填时使用 Tavily keyless。连通测试会执行真实的 basic 搜索，账号模式每次消耗 1 积分；测试不会保存草稿或修改开关。
@@ -53,7 +53,7 @@ DSH 设置命名空间：`web-search-tavily`；provider id：`tavily`。设置�
 - 探测沿用 DSH Connection 的请求检查，流式输入上限 4 KiB、读取时限 5 秒。实际认证边界取决于宿主和代理配置，本插件不安装认证绕过。
 - 密钥在写入请求头前校验；网络错误不附带原始异常，上游错误文本会脱敏。自定义网关会收到密钥和查询，务必使用可信网关；禁止跟随重定向。
 
-具体边界见[兼容性说明](docs/COMPATIBILITY.md)及 [0.5.0 验证记录](docs/REGRESSION.md)。
+具体边界见[兼容性说明](docs/COMPATIBILITY.md)及[验证记录](docs/REGRESSION.md)。
 
 ## 开发与发布
 

@@ -7,7 +7,7 @@ Tavily web search for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek
 ## Install
 
 ```sh
-dsh plugin --profile web add dsh-tavily-provider@0.5.0
+dsh plugin --profile web add dsh-tavily-provider@0.5.1
 ```
 
 Restart DSH, then open **Settings → Plugins → Plugin configuration → Tavily web search**. Enable Tavily and save. An API key is optional; without one the plugin uses Tavily's keyless access mode. Test connection performs a real basic search and costs one credit in account mode. A probe does not save a draft or change the switch.
@@ -53,7 +53,7 @@ Basic remains the balanced default. Fast favors latency; ultra-fast sacrifices r
 - Probes use DSH Connection's request checks, a streaming 4 KiB input limit and a five-second body deadline. Their security boundary follows the host's authentication and proxy configuration; this plugin does not install an authentication bypass.
 - Keys are validated before use in headers. Network failures omit raw causes; upstream error messages redact keys. Custom gateways receive the key and query, so only configure one you trust. Redirects are rejected.
 
-See [compatibility and transport limits](docs/COMPATIBILITY.md) and the [0.5.0 validation record](docs/REGRESSION.md).
+See [compatibility and transport limits](docs/COMPATIBILITY.md) and the [validation record](docs/REGRESSION.md).
 
 ## Development and release
 
