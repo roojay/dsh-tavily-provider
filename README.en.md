@@ -2,9 +2,13 @@
 
 [中文](README.md) | English
 
-[![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
-
 Tavily web-search provider for [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness). Version `0.4.x` targets DSH `0.1.5-rc.2` while preserving the original toggle, credential references, and DeepSeek fallback.
+
+## Origin and maintenance
+
+This project is a public fork of [`SZMY-haruhi/dsh-tavily`](https://github.com/SZMY-haruhi/dsh-tavily), continuing development from its MIT-licensed code. Since `0.4.0`, this fork has been maintained independently by `roojay` under the new npm package name `dsh-tavily-provider`. Its main changes include adapting to current DSH interfaces, updating the client settings integration, and rebuilding the test and automated release workflows.
+
+The upstream author retains copyright in the original code; subsequent modifications remain copyrighted by their respective contributors. See [LICENSE](LICENSE) for the full terms and original copyright notice. This project is not an official DeepSeek or Tavily project.
 
 ## Install
 
@@ -92,15 +96,6 @@ You can also put these in `$DSH_HOME/.credentials.yaml`. Do not commit real keys
 - **2026-08-17** **0.3.1 (please update)** Fix: installing alongside other client plugins could freeze Web on “Failed to load plugins / dsh-tavily” (`settings.plugin.item` needs `key`, not `id`/`order`). Card namespace is `web-search-tavily`; the official Web Search card is not shadowed. Toggle and key still live on credentials.
 - **2026-08-17** Settings card: Test connection at the bottom-left. Works without a key (Tavily keyless). A saved key uses the account path and 1 credit. Does not change the toggle or Save.
 
----
+## License
 
-
-
-## Author
-
-<a href="https://tonkatsu258.vercel.app/index.html">
-  <img src="docs/avatar.png" width="96" height="96" alt="tonkatsu258" />
-</a>
-
-**Thanks for the star ❤️**
-**[tonkatsu258](https://tonkatsu258.vercel.app/index.html)** · [personal site](https://tonkatsu258.vercel.app/index.html)
+This project is distributed under the [MIT License](LICENSE). The upstream author `SZMY-haruhi` remains identified in the copyright notice in `LICENSE`.

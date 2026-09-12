@@ -2,9 +2,13 @@
 
 中文 | [English](README.en.md)
 
-[![awesome · DSH plugin](https://awesome-dsh-plugin.com/badge.svg)](https://awesome-dsh-plugin.com)
-
 [DeepSeek Harness](https://github.com/deepseek-ai/deepseek-harness) 的 Tavily 网页搜索 Provider。`0.4.x` 适配 DSH `0.1.5-rc.2`，保留原有开关、凭据引用和 DeepSeek 回落行为。
+
+## 项目来源与维护
+
+本项目是 [`SZMY-haruhi/dsh-tavily`](https://github.com/SZMY-haruhi/dsh-tavily) 的公开 fork，基于其 MIT 许可代码继续开发。自 `0.4.0` 起，本 fork 由 `roojay` 独立维护，并使用新的 npm 包名 `dsh-tavily-provider`；主要修改包括适配新版 DSH 接口、更新客户端设置集成，以及重建测试和自动发布流程。
+
+上游原作者保留原始代码的版权；本 fork 的后续修改由对应贡献者保留版权。完整条款及原作者版权声明见 [LICENSE](LICENSE)。本项目不是 DeepSeek 或 Tavily 的官方项目。
 
 ## 安装
 
@@ -90,15 +94,6 @@ Provider id：`tavily`。
 - **2026-08-17** **0.3.1（请更新）** 修复：与其它客户端插件同时安装时，Web 可能卡在「Failed to load plugins / dsh-tavily」（`settings.plugin.item` 需 `key`，不能再用 `id`/`order`）。设置卡命名空间 `web-search-tavily`，不覆盖官方网页搜索卡。开关与 Key 仍走 credentials。
 - **2026-08-17** 设置卡左下增加连通测试。无 Key 也可测（走 Tavily keyless）；有已存 Key 则走账号档，消耗 1 积分。不改开关、不占用保存。
 
----
+## 许可
 
-
-
-## Author
-
-<a href="https://tonkatsu258.vercel.app/index.html">
-  <img src="docs/avatar.png" width="96" height="96" alt="tonkatsu258" />
-</a>
-
-**感谢star❤️**
-**[tonkatsu258](https://tonkatsu258.vercel.app/index.html)** · [个人网站](https://tonkatsu258.vercel.app/index.html)
+本项目遵循 [MIT License](LICENSE)。`LICENSE` 中保留了上游原作者 `SZMY-haruhi` 的版权声明。
